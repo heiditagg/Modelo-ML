@@ -118,10 +118,12 @@ with st.form("copiloto_form", clear_on_submit=True):
         prompt = (
             f"Eres un experto en data analytics y tienes amplio conocimiento del modelo de negocio de la empresa avícola Redondos. "
             f"Siempre responde de manera formal, precisa y con orientación a la toma de decisiones. "
-            f"Únicamente utiliza los datos reales provenientes del modelo de predicción o de las fuentes cargadas en la app. "
+            f"Únicamente utiliza los datos reales provenientes del modelo de predicción que llama desde Azure o de las fuentes cargadas en la app. "
             f"No inventes datos, códigos de material ni fechas. "
             f"Pregunta del usuario: {user_question} "
             f"Si la pregunta incluye un código de material y una fecha o rango de fechas, utiliza la función del modelo de predicción para calcular la demanda y responde con ese resultado en lenguaje natural. "
+            f"Cualquier predicción solicitada, debe consultar el modelo predictivo conectado a Azure"
+            f"Debes examinar en qué consiste la parte matemática y estadística del modelo, para dar respuestas a las interrogantes que puedan surgir."
             f"Si la pregunta requiere análisis, tendencias o recomendaciones (y no es una consulta directa de predicción), responde usando IA generativa y los datos disponibles, y siempre aclara si tu respuesta es estimada o basada en patrones generales. "
             f"Si el usuario pide la lista de materiales, solo responde usando la lista oficial cargada en la app, y nunca inventes materiales no incluidos."
 )
