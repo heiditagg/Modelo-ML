@@ -1,4 +1,6 @@
 streamlit
-requests
+openai
 pandas
+requests
+xlrd
 openpyxl
