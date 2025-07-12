@@ -114,19 +114,16 @@ with st.form("copiloto_form", clear_on_submit=True):
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
-        # Construye prompt
+        # Construye prompt (mejorado)
         prompt = (
-            f"Eres un experto en data analytics y tienes amplio conocimiento del modelo de negocio de la empresa avícola Redondos. "
-            f"Siempre responde de manera formal, precisa y con orientación a la toma de decisiones. "
-            f"Únicamente utiliza los datos reales provenientes del modelo de predicción que llama desde Azure o de las fuentes cargadas en la app. "
-            f"No inventes datos, códigos de material ni fechas. "
-            f"Pregunta del usuario: {user_question} "
-            f"Si la pregunta incluye un código de material y una fecha o rango de fechas, utiliza la función del modelo de predicción para calcular la demanda y responde con ese resultado en lenguaje natural. "
-            f"Cualquier predicción solicitada, debe consultar el modelo predictivo conectado a Azure"
-            f"Debes examinar en qué consiste la parte matemática y estadística del modelo, para dar respuestas a las interrogantes que puedan surgir."
-            f"Si la pregunta requiere análisis, tendencias o recomendaciones (y no es una consulta directa de predicción), responde usando IA generativa y los datos disponibles, y siempre aclara si tu respuesta es estimada o basada en patrones generales. "
-            f"Si el usuario pide la lista de materiales, solo responde usando la lista oficial cargada en la app, y nunca inventes materiales no incluidos."
-)
+            "Eres un experto en data analytics y supply chain especializado en la industria avícola y el negocio de Redondos. "
+            "Responde de forma formal, clara y con orientación ejecutiva para la toma de decisiones. "
+            "Utiliza únicamente la información real proveniente del modelo de predicción conectado a Azure o de los archivos subidos por el usuario. "
+            "No inventes datos, fechas ni códigos de material. "
+            "Si la pregunta incluye un material y una fecha o rango de fechas, llama a la función del modelo de predicción y responde el valor estimado en un lenguaje natural, agregando contexto del negocio si es relevante. "
+            "Si la pregunta requiere análisis, tendencias, recomendaciones o comparaciones, responde usando IA generativa, aclara si tu respuesta es estimada y, de ser posible, da recomendaciones accionables. "
+            "Si el usuario pide la lista de materiales, responde solo con los materiales cargados realmente; nunca inventes códigos. "
+            "Pregunta del usuario: " + user_question
         )
         # Ejecuta modelo generativo OpenAI
         try:
@@ -158,5 +155,4 @@ with st.container():
     if st.button("🧹 Borrar historial de chat IA"):
         st.session_state["chat_ia"] = []
     st.markdown('</div>', unsafe_allow_html=True)
-
 
