@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import json
 from openai import OpenAI
+import re
 
 # ----- CONFIG -----
 st.set_page_config(page_title="Predicción de Demanda Redondos", layout="wide", page_icon="🔮")
@@ -66,7 +67,7 @@ def call_azureml(materiales, forecast_date, api_key):
     except Exception as e:
         return [{"error": f"Error llamando al modelo Azure ML: {e}"}]
 
-# ----- FLUJO PREDICCIÓN PUNTUAL -----
+# ============ FLUJO PREDICCIÓN PUNTUAL ============= #
 st.header("Predicción puntual")
 with st.form("puntual_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
@@ -84,7 +85,7 @@ with st.form("puntual_form", clear_on_submit=False):
         else:
             st.error(resultados[0].get("error", "Error desconocido en predicción."))
 
-# ----- FLUJO MASIVO -----
+# ============ FLUJO MASIVO ============= #
 if excel_file and azureml_api_key:
     df_in = pd.read_excel(excel_file)
     if "material" in df_in.columns and "fecha" in df_in.columns:
@@ -106,42 +107,57 @@ st.header("🤖 Chat IA Generativa (Copiloto)")
 if "chat_ia" not in st.session_state:
     st.session_state["chat_ia"] = []
 
-# Input para pregunta generativa
+def extraer_material_fecha(pregunta):
+    # Busca patrón de material de 6 dígitos y fecha yyyy-mm-dd
+    mat = None
+    fecha = None
+    mat_match = re.search(r'\b\d{6}\b', pregunta)
+    if mat_match:
+        mat = mat_match.group()
+    fecha_match = re.search(r'\d{4}-\d{2}-\d{2}', pregunta)
+    if fecha_match:
+        fecha = fecha_match.group()
+    return mat, fecha
+
 with st.form("copiloto_form", clear_on_submit=True):
     user_question = st.text_input(
-        "Pregunta (ejemplo: ¿Qué demanda se espera para el material X (precisar código) en la fecha yyyy-mm-dd? o pídeme alguna recomendación)",
+        "Pregunta (ejemplo: ¿Qué demanda se espera para el material (precise el código) en la fecha (yyyy-mm-dd)? o solicita alguna recomendación. )",
         key="q_copiloto"
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
-        # Construye prompt (mejorado)
-        prompt = (
-            "Eres un experto en data analytics, especializado en la industria avícola y el negocio de Redondos. "
-            "Responde de forma formal, clara y con orientación ejecutiva para la toma de decisiones. "
-            "Utiliza únicamente la información real proveniente del modelo de predicción conectado a Azure o de los archivos subidos por el usuario. "
-            "No inventes datos, fechas ni códigos de material. "
-            "Si la pregunta incluye un material y una fecha o rango de fechas, llama a la función del modelo de predicción y responde el valor estimado en un lenguaje natural, agregando contexto del negocio si es relevante. "
-            "Si la pregunta requiere análisis, tendencias, recomendaciones o comparaciones, responde usando IA generativa, aclara si tu respuesta es estimada y, de ser posible, da recomendaciones accionables. "
-            "Si el usuario pide la lista de materiales, responde solo con los materiales cargados realmente; nunca inventes códigos. "
-            "Pregunta del usuario: " + user_question
-        )
-        # Ejecuta modelo generativo OpenAI
-        try:
-            client = OpenAI(api_key=openai_api_key)
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": user_question}
-                ]
+        mat, fecha = extraer_material_fecha(user_question)
+        if mat and fecha:
+            # Es una pregunta de predicción cuantitativa
+            resultados = call_azureml(mat, fecha, azureml_api_key)
+            if resultados and "error" not in resultados[0]:
+                pred = resultados[0].get("prediccion_kilos", "No disponible")
+                answer = f"La predicción de demanda para el material {mat} el {fecha} es: **{pred} kilos**."
+            else:
+                answer = resultados[0].get("error", "Error en la predicción.")
+        else:
+            # Pregunta analítica, usa GPT
+            prompt = (
+                "Eres un experto en data analytics con profundo conocimiento en supply chain avícola. "
+                "Responde de manera ejecutiva, precisa y basada en datos reales provenientes del modelo predictivo conectado a Azure. "
+                "Nunca inventes códigos de material ni números, solo analiza o recomienda usando patrones, tendencias o mejores prácticas. "
+                "Si tu respuesta es una estimación basada en patrones, indícalo. "
+                f"Pregunta del usuario: {user_question}"
             )
-            answer = response.choices[0].message.content
-        except Exception as e:
-            answer = f"Error al llamar a OpenAI: {e}"
+            try:
+                client = OpenAI(api_key=openai_api_key)
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": user_question}
+                    ]
+                )
+                answer = response.choices[0].message.content
+            except Exception as e:
+                answer = f"Error al llamar a OpenAI: {e}"
 
-        st.session_state["chat_ia"].append(
-            {"user": user_question, "bot": answer}
-        )
+        st.session_state["chat_ia"].append({"user": user_question, "bot": answer})
 
 # Historial del chat generativo
 st.subheader("Historial del Chat IA Generativa")
@@ -155,4 +171,3 @@ with st.container():
     if st.button("🧹 Borrar historial de chat IA"):
         st.session_state["chat_ia"] = []
     st.markdown('</div>', unsafe_allow_html=True)
-
