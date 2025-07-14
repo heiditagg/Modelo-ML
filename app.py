@@ -109,14 +109,14 @@ if "chat_ia" not in st.session_state:
 # Input para pregunta generativa
 with st.form("copiloto_form", clear_on_submit=True):
     user_question = st.text_input(
-        "Pregunta (ejemplo: ¿Qué demanda se espera para POLLO el 2025-12-31? o pídeme un análisis o recomendación)",
+        "Pregunta (ejemplo: ¿Qué demanda se espera para el material X (precisar código) en la fecha yyyy-mm-dd? o pídeme alguna recomendación)",
         key="q_copiloto"
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
         # Construye prompt (mejorado)
         prompt = (
-            "Eres un experto en data analytics y supply chain especializado en la industria avícola y el negocio de Redondos. "
+            "Eres un experto en data analytics, especializado en la industria avícola y el negocio de Redondos. "
             "Responde de forma formal, clara y con orientación ejecutiva para la toma de decisiones. "
             "Utiliza únicamente la información real proveniente del modelo de predicción conectado a Azure o de los archivos subidos por el usuario. "
             "No inventes datos, fechas ni códigos de material. "
