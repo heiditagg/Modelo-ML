@@ -1,39 +1,56 @@
 import streamlit as st
 import requests
 import pandas as pd
-import json
-import re
 from openai import OpenAI
 
-# ----- CONFIGURACIÓN -----
-st.set_page_config(page_title="Predicción de Demanda Redondos", layout="wide", page_icon="🔮")
-
+# --- ESTILOS VISUALES CHAT ---
 st.markdown("""
     <style>
-    .custom-title {
-        color: #d32c2f; font-weight: 900; font-size: 2.1rem; letter-spacing: -1px;
-        margin-bottom: 0.3rem; font-family: Segoe UI, Arial;
+    .chat-container {
+        max-width: 750px;
+        margin: auto;
+        padding: 24px 0 0 0;
     }
-    .custom-sub {
-        color: #b30f21; font-size:1.17rem; font-weight:500; margin-bottom:0.7rem;
+    .chat-message {
+        display: flex; align-items: flex-start; margin-bottom: 18px;
     }
-    .chat-bubble-user { color: #d32c2f; font-weight: bold; }
-    .chat-bubble-bot { background:#f8f8f8; border-left:4px solid #d32c2f; padding:10px 20px; border-radius:10px; margin-bottom:14px;}
-    .btn-clear button {
-        background-color: #ececec !important; color: #333 !important; border: none !important;
-        font-size: 0.95rem !important; padding: 3px 13px !important; border-radius: 6px !important;
-        box-shadow: none !important; margin-bottom: 13px !important; margin-top: 3px; margin-left: 8px;
-        transition: background 0.17s;
+    .chat-message.user .bubble {
+        background: #ff5c5c;
+        color: white;
+        border-radius: 16px 16px 4px 16px;
+        margin-left: 10px;
+        margin-right: auto;
     }
-    .btn-clear button:hover { background-color: #d3d3d3 !important; color: #d32c2f !important; }
+    .chat-message.bot .bubble {
+        background: #fffbe7;
+        color: #4f4f4f;
+        border-radius: 16px 16px 16px 4px;
+        margin-right: 10px;
+        margin-left: auto;
+        border: 1px solid #f3dc85;
+    }
+    .bubble {
+        padding: 16px 18px;
+        max-width: 76%;
+        font-size: 1.09rem;
+        box-shadow: 0 1px 8px rgba(0,0,0,0.03);
+    }
+    .icon {
+        font-size: 2.0rem;
+        margin-top: 2px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
+# --- CABECERA APP ---
+st.set_page_config(page_title="Predicción de Demanda Redondos", layout="wide", page_icon="🔮")
+
 st.image("logo_redondos.png", width=110)
-st.markdown('<div class="custom-title">🔮 Predicción de Demanda Redondos</div>', unsafe_allow_html=True)
-st.markdown('<div class="custom-sub">Consulta puntual, masiva y conversación con IA Generativa</div>', unsafe_allow_html=True)
+st.markdown('<div style="color:#d32c2f;font-weight:900;font-size:2.1rem;letter-spacing:-1px;margin-bottom:0.3rem;font-family:Segoe UI,Arial;">🔮 Predicción de Demanda Redondos</div>', unsafe_allow_html=True)
+st.markdown('<div style="color:#b30f21;font-size:1.17rem;font-weight:500;margin-bottom:0.7rem;">Consulta puntual, masiva y conversación con IA Generativa</div>', unsafe_allow_html=True)
 st.markdown("---")
 
+# --- SIDEBAR PARA CLAVES Y ARCHIVOS ---
 with st.sidebar:
     st.markdown("🔑 <b>API Key Azure ML</b>", unsafe_allow_html=True)
     azureml_api_key = st.text_input(" ", type="password", key="azureml_api")
@@ -46,9 +63,10 @@ with st.sidebar:
     st.markdown("---")
     st.write("Creado por Heidi Guevara – Redondos")
 
-# Ajusta tu endpoint real si cambia:
-AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"
+# --- PARÁMETROS ENDPOINT ---
+AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"   # Actualiza tu endpoint real aquí
 
+# --- FUNCIÓN PARA LLAMAR AL MODELO PREDICTIVO ---
 def call_azureml(materiales, forecast_date, api_key):
     headers = {
         "Content-Type": "application/json",
@@ -65,6 +83,7 @@ def call_azureml(materiales, forecast_date, api_key):
     except Exception as e:
         return [{"error": f"Error llamando al modelo Azure ML: {e}"}]
 
+# --- FLUJO PREDICCIÓN PUNTUAL ---
 st.header("Predicción puntual")
 with st.form("puntual_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
@@ -82,7 +101,7 @@ with st.form("puntual_form", clear_on_submit=False):
         else:
             st.error(resultados[0].get("error", "Error desconocido en predicción."))
 
-# ----- FLUJO MASIVO -----
+# --- FLUJO PREDICCIÓN MASIVA DESDE EXCEL ---
 if excel_file and azureml_api_key:
     df_in = pd.read_excel(excel_file)
     if "material" in df_in.columns and "fecha" in df_in.columns:
@@ -98,85 +117,94 @@ if excel_file and azureml_api_key:
 
 st.markdown("---")
 
-# ============ COPILOTO IA HÍBRIDO ============= #
+# --- INICIA HISTORIAL DEL CHAT IA ---
 st.header("🤖 Chat IA Generativa (Copiloto)")
 
 if "chat_ia" not in st.session_state:
     st.session_state["chat_ia"] = []
 
-def extraer_material_fecha(pregunta):
-    """
-    Extrae material (número) y fecha (YYYY-MM-DD) de la pregunta.
-    Ajusta los patrones si tus materiales son diferentes.
-    """
-    material = None
-    fecha = None
-    # Busca un número largo (ej: 1000110) que sería el código de material
-    mat_match = re.search(r"(material\s*)?(\d{5,})", pregunta.lower())
-    if mat_match:
-        material = mat_match.group(2)
-    # Busca fechas con formato YYYY-MM-DD
-    fecha_match = re.search(r"(\d{4}-\d{2}-\d{2})", pregunta)
-    if fecha_match:
-        fecha = fecha_match.group(1)
-    return material, fecha
-
+# --- INPUT CHAT ---
 with st.form("copiloto_form", clear_on_submit=True):
     user_question = st.text_input(
-        "Pregunta (ejemplo: ¿Cuál es la demanda proyectada para el material 1000110 el 2025-12-31? O solicita una explicación o análisis)",
+        "Pregunta (ejemplo: ¿Qué demanda se espera para el material 1000130 en la fecha 2025-12-31? o pídeme un análisis o recomendación)",
         key="q_copiloto"
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
-        material, fecha = extraer_material_fecha(user_question)
-        respuesta_prediccion = ""
-        if material and fecha:
-            # Llama al modelo ML para la predicción puntual
-            resultados = call_azureml(material, fecha, azureml_api_key)
-            if resultados and "error" not in resultados[0]:
-                pred = resultados[0].get("prediccion_kilos", "No disponible")
-                respuesta_prediccion = (
-                    f"\nLa predicción de demanda para el material {material} el {fecha} es **{pred} kg**.\n\n"
-                )
-            else:
-                respuesta_prediccion = f"No se pudo obtener la predicción para el material {material} el {fecha}."
-        
-        # Construye el prompt para OpenAI (usa el número real si aplica)
+        # Prompt inteligente híbrido
         prompt = (
-            "Eres un analista experto en planificación de la demanda en el sector avícola/porcina para Redondos. "
-            "Cuando el usuario solicite una predicción para un material y fecha específica, "
-            "debes responder usando el valor entregado a continuación, agregando una interpretación ejecutiva y sugerencias si aplica. "
-            "En cualquier otra pregunta, responde como un experto consultivo, sin inventar cifras ni códigos empresariales. "
-            f"{respuesta_prediccion}"
+            f"Eres un experto en data analytics de la industria avícola Redondos. "
+            f"Responde SIEMPRE usando datos reales del modelo predictivo conectado a Azure ML si se solicita demanda numérica, y NUNCA inventes materiales ni fechas. "
+            f"Si la consulta es para un material y una fecha, llama a la función de predicción y responde SOLO el valor numérico predicho y una breve interpretación ejecutiva. "
+            f"Si la consulta es solo analítica o de tendencias, responde como un consultor experto usando IA generativa y aclara si tu respuesta es estimada. "
+            f"Evita generalidades y aporta insights de negocio útiles. "
             f"Pregunta del usuario: {user_question}"
         )
 
-        try:
-            client = OpenAI(api_key=openai_api_key)
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Cambia a gpt-4o si tienes acceso y presupuesto
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": user_question}
-                ]
-            )
-            answer = response.choices[0].message.content
-        except Exception as e:
-            answer = f"Error al llamar a OpenAI: {e}"
+        # Si parece una consulta de predicción, intenta llamarla directamente
+        import re
+        mat_re = re.search(r"(material|código|cod)[\s:]*([0-9]+)", user_question, re.IGNORECASE)
+        date_re = re.search(r"(fecha|para|en)\s*(el|la)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", user_question, re.IGNORECASE)
+        answer = ""
+        if mat_re and date_re:
+            cod = mat_re.group(2)
+            date = date_re.group(3)
+            resultados = call_azureml(cod, date, azureml_api_key)
+            if resultados and "error" not in resultados[0]:
+                predic = resultados[0].get("prediccion_kilos", None)
+                if predic is not None:
+                    answer = f"La demanda proyectada para el material {cod} el {date} es de **{predic} kilos**. Este dato es resultado del modelo predictivo oficial. Te recomiendo monitorear el comportamiento real para ajustar estrategias de abastecimiento y ventas."
+                else:
+                    answer = "No se pudo obtener la predicción numérica para ese material y fecha. Por favor verifica los datos."
+            else:
+                answer = resultados[0].get("error", "No se pudo predecir, revisa los datos ingresados.")
+        else:
+            # Usa OpenAI solo si NO es una consulta de predicción numérica directa
+            try:
+                client = OpenAI(api_key=openai_api_key)
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": user_question}
+                    ]
+                )
+                answer = response.choices[0].message.content
+            except Exception as e:
+                answer = f"Error al llamar a OpenAI: {e}"
 
         st.session_state["chat_ia"].append(
             {"user": user_question, "bot": answer}
         )
 
-# Historial del chat generativo
-st.subheader("Historial del Chat IA Generativa")
-for h in reversed(st.session_state["chat_ia"]):
-    st.markdown(f"<div class='chat-bubble-user'>Tú: {h['user']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='chat-bubble-bot'><b>Copiloto IA:</b> {h['bot']}</div>", unsafe_allow_html=True)
+# --- HISTORIAL DE CONVERSACIÓN VISUAL TIPO WHATSAPP ---
+def get_icon(role):
+    return "🧑" if role == "user" else "🤖"
 
-# Botón limpiar chat
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+for h in st.session_state["chat_ia"]:
+    st.markdown(
+        f"""
+        <div class="chat-message user">
+            <div class="icon">🧑</div>
+            <div class="bubble">{h['user']}</div>
+        </div>
+        """, unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"""
+        <div class="chat-message bot">
+            <div class="icon">🤖</div>
+            <div class="bubble">{h['bot']}</div>
+        </div>
+        """, unsafe_allow_html=True,
+    )
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --- BOTÓN LIMPIAR CHAT ---
 with st.container():
     st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
     if st.button("🧹 Borrar historial de chat IA"):
         st.session_state["chat_ia"] = []
     st.markdown('</div>', unsafe_allow_html=True)
+
