@@ -2,8 +2,10 @@ import streamlit as st
 import requests
 import pandas as pd
 import json
+import re
 from openai import OpenAI
 
+# ----- CONFIGURACIÓN -----
 st.set_page_config(page_title="Predicción de Demanda Redondos", layout="wide", page_icon="🔮")
 
 st.markdown("""
@@ -44,7 +46,8 @@ with st.sidebar:
     st.markdown("---")
     st.write("Creado por Heidi Guevara – Redondos")
 
-AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"   # actualiza con tu endpoint real
+# Ajusta tu endpoint real si cambia:
+AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"
 
 def call_azureml(materiales, forecast_date, api_key):
     headers = {
@@ -101,52 +104,66 @@ st.header("🤖 Chat IA Generativa (Copiloto)")
 if "chat_ia" not in st.session_state:
     st.session_state["chat_ia"] = []
 
-import re
-def extraer_material_fecha(texto):
-    # Busca posibles códigos de material (ejemplo: 1000130) y fechas (yyyy-mm-dd o similar)
-    material = re.search(r"\b\d{5,10}\b", texto)
-    fecha = re.search(r"\d{4}-\d{2}-\d{2}", texto)
-    return material.group(0) if material else None, fecha.group(0) if fecha else None
+def extraer_material_fecha(pregunta):
+    """
+    Extrae material (número) y fecha (YYYY-MM-DD) de la pregunta.
+    Ajusta los patrones si tus materiales son diferentes.
+    """
+    material = None
+    fecha = None
+    # Busca un número largo (ej: 1000110) que sería el código de material
+    mat_match = re.search(r"(material\s*)?(\d{5,})", pregunta.lower())
+    if mat_match:
+        material = mat_match.group(2)
+    # Busca fechas con formato YYYY-MM-DD
+    fecha_match = re.search(r"(\d{4}-\d{2}-\d{2})", pregunta)
+    if fecha_match:
+        fecha = fecha_match.group(1)
+    return material, fecha
 
 with st.form("copiloto_form", clear_on_submit=True):
     user_question = st.text_input(
-        "Pregunta (ejemplo: ¿Qué demanda se espera para el material X (precisar código) en la fecha yyyy-mm-dd? o solicita alguna recomendación.)"
+        "Pregunta (ejemplo: ¿Cuál es la demanda proyectada para el material 1000110 el 2025-12-31? O solicita una explicación o análisis)",
+        key="q_copiloto"
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
         material, fecha = extraer_material_fecha(user_question)
+        respuesta_prediccion = ""
         if material and fecha:
-            # Predicción puntual ML si detecta ambos
+            # Llama al modelo ML para la predicción puntual
             resultados = call_azureml(material, fecha, azureml_api_key)
             if resultados and "error" not in resultados[0]:
-                respuesta_ml = f"La predicción de demanda para el material {material} el {fecha} es:\n\n"
-                df_pred = pd.DataFrame(resultados)
-                respuesta_ml += df_pred.to_markdown(index=False)
-                answer = respuesta_ml
-            else:
-                answer = resultados[0].get("error", "Error desconocido en predicción ML.")
-        else:
-            # Si no hay material y fecha, responde con GPT (IA generativa)
-            prompt = (
-                f"Eres un experto en data analytics y supply chain para la industria avícola Redondos. "
-                f"Responde siempre de manera clara, formal y basada en los datos y patrones que un analista puede conocer, "
-                f"pero nunca inventes códigos de material ni cifras numéricas. Si el usuario solicita predicción para materiales específicos y fechas, "
-                f"recuerda que debe usar el formulario puntual, o proporciona la instrucción para hacerlo. "
-                f"Pregunta del usuario: {user_question} "
-                f"Si la consulta requiere análisis, tendencias o recomendaciones, responde usando IA generativa y aclara si es una estimación general."
-            )
-            try:
-                client = OpenAI(api_key=openai_api_key)
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": user_question}
-                    ]
+                pred = resultados[0].get("prediccion_kilos", "No disponible")
+                respuesta_prediccion = (
+                    f"\nLa predicción de demanda para el material {material} el {fecha} es **{pred} kg**.\n\n"
                 )
-                answer = response.choices[0].message.content
-            except Exception as e:
-                answer = f"Error al llamar a OpenAI: {e}"
+            else:
+                respuesta_prediccion = f"No se pudo obtener la predicción para el material {material} el {fecha}."
+        
+        # Construye el prompt para OpenAI (usa el número real si aplica)
+        prompt = (
+            "Eres un analista experto en demanda y supply chain avícola para Redondos. "
+            "Cuando el usuario solicite una predicción para un material y fecha específica, "
+            "debes responder usando el valor entregado a continuación, agregando una interpretación ejecutiva y sugerencias si aplica. "
+            "En cualquier otra pregunta, responde como un experto consultivo, sin inventar cifras ni códigos empresariales. "
+            f"{respuesta_prediccion}"
+            f"Pregunta del usuario: {user_question}"
+        )
+
+        try:
+            client = OpenAI(api_key=openai_api_key)
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",  # Cambia a gpt-4o si tienes acceso y presupuesto
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_question}
+                ]
+            )
+            answer = response.choices[0].message.content
+        except Exception as e:
+            answer = f"Error al llamar a OpenAI: {e}"
+
         st.session_state["chat_ia"].append(
             {"user": user_question, "bot": answer}
         )
