@@ -143,7 +143,7 @@ with st.form("copiloto_form", clear_on_submit=True):
         
         # Construye el prompt para OpenAI (usa el número real si aplica)
         prompt = (
-            "Eres un analista experto en demanda y supply chain avícola para Redondos. "
+            "Eres un analista experto en planificación de la demanda en el sector avícola/porcina para Redondos. "
             "Cuando el usuario solicite una predicción para un material y fecha específica, "
             "debes responder usando el valor entregado a continuación, agregando una interpretación ejecutiva y sugerencias si aplica. "
             "En cualquier otra pregunta, responde como un experto consultivo, sin inventar cifras ni códigos empresariales. "
