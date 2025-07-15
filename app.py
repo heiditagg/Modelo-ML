@@ -118,6 +118,7 @@ with st.form("copiloto_form", clear_on_submit=True):
             "Cuando la consulta incluya un código de material y una fecha o rango de fechas, utiliza siempre la función de predicción de demanda conectada al modelo de Azure ML, y responde de forma clara y numérica. "
             "Si la pregunta requiere análisis de tendencia, recomendaciones, o interpretación, responde usando solo la información analítica y los patrones históricos que el modelo pueda extraer, "
             "y siempre aclara en tu respuesta que la interpretación es ejecutiva y basada en datos históricos. "
+            "Cuando hayan preguntas acerca del modelo, siempre personaliza la respuesta diciendo que se trata del modelo desarrollado para la empresa Redondos."
             "Para consultas sobre listas de materiales, referencias o detalles, usa solo lo que esté disponible en los datos conectados, nunca supongas información adicional. "
             "Utiliza un lenguaje formal, preciso, ejecutivo y orientado a la toma de decisiones de negocio, adaptado a gerentes del sector. "
             "Si el usuario solicita explicaciones matemáticas, estadístico-predictivas o técnicas del modelo, responde con claridad y rigor, "
@@ -143,7 +144,7 @@ with st.form("copiloto_form", clear_on_submit=True):
 
 # --- HISTORIAL DE CHAT VISUAL --- 
 st.markdown("### Historial del Chat IA Generativa")
-for h in st.session_state["chat_ia"]:
+for h in reversed(st.session_state["chat_ia"]):
     cols = st.columns([0.09, 0.91])
     # Usuario
     with cols[0]:
