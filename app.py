@@ -3,43 +3,34 @@ import requests
 import pandas as pd
 from openai import OpenAI
 
-# =========== CONFIGURACIÓN GENERAL ===============
+# --- CONFIGURACIÓN GENERAL ---
 st.set_page_config(page_title="Predicción de Demanda Redondos", layout="wide", page_icon="🔮")
+
 st.markdown("""
     <style>
-    .bubble-user {
-        background: #d32c2f18; color: #d32c2f; 
-        padding: 14px 18px; border-radius: 15px 15px 2px 15px;
-        margin-bottom: 4px; margin-left: 42px; 
-        text-align: left; font-weight: 600;
-        position: relative;
+    .custom-title {
+        color: #d32c2f; font-weight: 900; font-size: 2.1rem; letter-spacing: -1px;
+        margin-bottom: 0.3rem; font-family: Segoe UI, Arial;
     }
-    .bubble-bot {
-        background: #f8f8f8; color: #232323; 
-        padding: 14px 18px; border-radius: 15px 15px 15px 2px;
-        margin-bottom: 18px; margin-right: 42px;
-        border-left: 5px solid #d32c2f;
-        text-align: left; 
-        position: relative;
+    .custom-sub {
+        color: #b30f21; font-size:1.17rem; font-weight:500; margin-bottom:0.7rem;
     }
-    .icon-user, .icon-bot {
-        width: 36px; height: 36px; border-radius: 50%;
-        display: inline-flex; align-items: center; 
-        justify-content: center; font-size: 23px;
-        position: absolute; left: -45px; top: 7px; background: #fff;
+    .btn-clear button {
+        background-color: #ececec !important; color: #333 !important; border: none !important;
+        font-size: 0.95rem !important; padding: 3px 13px !important; border-radius: 6px !important;
+        box-shadow: none !important; margin-bottom: 13px !important; margin-top: 3px; margin-left: 8px;
+        transition: background 0.17s;
     }
-    .icon-user { color: #d32c2f; border: 2px solid #d32c2f;}
-    .icon-bot { color: #222; border: 2px solid #ccc;}
-    .stTextInput>div>div>input {font-size: 1.13rem;}
-    .stButton>button {font-size: 1.11rem;}
+    .btn-clear button:hover { background-color: #d3d3d3 !important; color: #d32c2f !important; }
     </style>
 """, unsafe_allow_html=True)
+
 st.image("logo_redondos.png", width=110)
-st.markdown('<h2 style="color:#d32c2f; font-weight:900; margin-bottom:2px; letter-spacing:-1px">🔮 Predicción de Demanda Redondos</h2>', unsafe_allow_html=True)
-st.markdown('<div style="color:#b30f21; font-size:1.19rem; margin-bottom:0.5rem; font-weight:500;">Consulta puntual, masiva y conversación con IA Generativa</div>', unsafe_allow_html=True)
+st.markdown('<div class="custom-title">🔮 Predicción de Demanda Redondos</div>', unsafe_allow_html=True)
+st.markdown('<div class="custom-sub">Consulta puntual, masiva y conversación con IA Generativa</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# =========== SIDEBAR ===========
+# --- SIDEBAR: API Keys y Carga ---
 with st.sidebar:
     st.markdown("🔑 <b>API Key Azure ML</b>", unsafe_allow_html=True)
     azureml_api_key = st.text_input(" ", type="password", key="azureml_api")
@@ -52,9 +43,10 @@ with st.sidebar:
     st.markdown("---")
     st.write("Creado por Heidi Guevara – Redondos")
 
-# =========== AZURE ML FUNCTION ===========
-AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"  # Actualiza tu endpoint real aquí
+# --- PARÁMETROS ---
+AZURE_ML_URL = "https://rdosml-xysue.eastus.inference.ml.azure.com/score"   # actualiza con tu endpoint real
 
+# --- FUNCIÓN PARA LLAMAR AZURE ML ---
 def call_azureml(materiales, forecast_date, api_key):
     headers = {
         "Content-Type": "application/json",
@@ -71,7 +63,7 @@ def call_azureml(materiales, forecast_date, api_key):
     except Exception as e:
         return [{"error": f"Error llamando al modelo Azure ML: {e}"}]
 
-# =========== PREDICCIÓN PUNTUAL ===========
+# --- PREDICCIÓN PUNTUAL ---
 st.header("Predicción puntual")
 with st.form("puntual_form", clear_on_submit=False):
     col1, col2 = st.columns(2)
@@ -89,7 +81,7 @@ with st.form("puntual_form", clear_on_submit=False):
         else:
             st.error(resultados[0].get("error", "Error desconocido en predicción."))
 
-# =========== PREDICCIÓN MASIVA ===========
+# --- PREDICCIÓN MASIVA ---
 if excel_file and azureml_api_key:
     df_in = pd.read_excel(excel_file)
     if "material" in df_in.columns and "fecha" in df_in.columns:
@@ -105,13 +97,13 @@ if excel_file and azureml_api_key:
 
 st.markdown("---")
 
-# =========== CHAT IA GENERATIVA ==============
-st.header("😊 Chat IA Generativa (Copiloto)")
+# ============ COPILOTO IA GENERATIVA ============= #
+st.header("🤖 Chat IA Generativa (Copiloto)")
 
 if "chat_ia" not in st.session_state:
     st.session_state["chat_ia"] = []
 
-# ---------- Input del usuario ----------
+# Input para pregunta generativa
 with st.form("copiloto_form", clear_on_submit=True):
     user_question = st.text_input(
         "Pregunta (ejemplo: ¿Cuál es la demanda proyectada para el material 1000110 el 2025-12-31? O solicita una explicación o análisis)",
@@ -119,74 +111,63 @@ with st.form("copiloto_form", clear_on_submit=True):
     )
     enviar_ia = st.form_submit_button("Enviar")
     if enviar_ia and user_question and openai_api_key and azureml_api_key:
+        # Prompt ajustado para priorizar respuestas numéricas y ejecutivas
         prompt = (
-            "Eres un experto en data analytics y supply chain en la industria avícola Redondos. "
-            "Contesta usando los resultados reales del modelo predictivo si la pregunta es de demanda, SIEMPRE consulta el modelo si piden un número. "
-            "Si la pregunta requiere análisis o explicación ejecutiva, responde de manera clara y profesional. "
-            "Nunca inventes códigos de material, fechas o resultados que no existan. "
-            "Pregunta del usuario: " + user_question
+            "Eres un experto en analytics y supply chain en la industria avícola. "
+            "Responde preguntas sobre demanda SOLO usando datos reales del modelo de predicción (Azure ML), NO inventes valores ni códigos de materiales. "
+            "Si la pregunta incluye un material y una fecha, debes consultar el modelo predictivo y mostrar el valor numérico exacto. "
+            "Si la pregunta es analítica o de recomendación, responde en tono ejecutivo y basado en patrones generales o históricos, y aclara si es una estimación. "
+            "Pregunta: " + user_question
         )
-
-        # ========== Lógica híbrida (predicción real si aplica) ==========
-        # Busca si hay código material (solo números) y fecha
-        import re
-        mat_re = re.findall(r"\b\d{6,}\b", user_question)
-        fecha_re = re.findall(r"\d{4}-\d{2}-\d{2}", user_question)
-        respuesta_modelo = None
-
-        if mat_re and fecha_re:
-            # Si la pregunta pide una predicción puntual, usa el modelo real
-            predic = call_azureml(mat_re[0], fecha_re[0], azureml_api_key)
-            if predic and "error" not in predic[0]:
-                num_pred = predic[0].get("prediccion_kilos", None)
-                if num_pred is not None:
-                    respuesta_modelo = (
-                        f"La demanda proyectada para el material {mat_re[0]} el {fecha_re[0]} es de {num_pred} kg "
-                        f"(dato real del modelo ML). ¿Deseas algún análisis sobre este resultado?"
-                    )
-        # ========== Llama a OpenAI ==========
+        # Ejecuta modelo generativo OpenAI
         try:
             client = OpenAI(api_key=openai_api_key)
-            messages = [{"role": "system", "content": prompt}]
-            if respuesta_modelo:
-                messages.append({"role": "assistant", "content": respuesta_modelo})
-            messages.append({"role": "user", "content": user_question})
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=messages
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_question}
+                ]
             )
             answer = response.choices[0].message.content
         except Exception as e:
             answer = f"Error al llamar a OpenAI: {e}"
-        # Guarda la conversación
+
         st.session_state["chat_ia"].append(
             {"user": user_question, "bot": answer}
         )
 
-# =========== HISTORIAL ESTILO BURBUJA ===========
+# --- HISTORIAL DE CHAT TIPO BURBUJA (sin bordes rojos) ---
 st.subheader("Historial del Chat IA Generativa")
 for h in reversed(st.session_state["chat_ia"]):
     # Burbuja usuario
     st.markdown(
         f"""
-        <div style="display: flex; align-items: flex-start;">
-          <span class="icon-user">🧑</span>
-          <div class="bubble-user">Tú: {h['user']}</div>
+        <div style="display: flex; align-items: flex-start; margin-bottom: 6px;">
+          <span style='font-size: 1.5rem; margin-right:7px;'>🧑</span>
+          <div style='background:#FFEBEE;border-radius:15px;padding:11px 21px;margin-bottom:3px;font-weight:600;max-width:82vw;'>
+            {h['user']}
+          </div>
         </div>
         """, unsafe_allow_html=True
     )
     # Burbuja bot
     st.markdown(
         f"""
-        <div style="display: flex; align-items: flex-start;">
-          <span class="icon-bot">🤖</span>
-          <div class="bubble-bot"><b>Copiloto IA:</b> {h['bot']}</div>
+        <div style="display: flex; align-items: flex-start; margin-bottom: 17px;">
+          <span style='font-size: 1.4rem; margin-right:7px;'>🤖</span>
+          <div style='background:#F7F8FA;border-radius:15px;padding:11px 21px;margin-bottom:3px;'>
+            <b>Copiloto IA:</b> {h['bot']}
+          </div>
         </div>
         """, unsafe_allow_html=True
     )
 
-# ---------- Botón limpiar chat ----------
+# Botón limpiar chat
 with st.container():
+    st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
     if st.button("🧹 Borrar historial de chat IA"):
         st.session_state["chat_ia"] = []
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
